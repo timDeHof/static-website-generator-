@@ -47,6 +47,35 @@ def generate_page(from_path: str, template_path: str, dest_path: str) -> None:
 
     logging.info(f"Generated {dest_path}")
 
+def generate_pages_recursive(dir_path_content: str, template_path: str, dest_dir_path: str) -> None:
+    """
+    Recursively generate HTML pages from markdown files in a directory using a template.
+
+    Args:
+        dir_path_content: Path to the directory containing markdown files
+        template_path: Path to the HTML template
+        dest_dir_path: Path where the generated HTML files should be saved
+    """
+    logging.info(f"Generating pages recursively from {dir_path_content} to {dest_dir_path} using {template_path}")
+
+    # Ensure destination directory exists
+    if not os.path.exists(dest_dir_path):
+        os.makedirs(dest_dir_path)
+
+    # Iterate over files in the directory
+    for filename in os.listdir(dir_path_content):
+        from_path = os.path.join(dir_path_content, filename)
+        dest_path = os.path.join(dest_dir_path, filename)
+
+        # If it's a file, generate the page
+        if os.path.isfile(from_path):
+            if filename.endswith(".md"):
+                dest_path = dest_path.replace(".md", ".html")
+                generate_page(from_path, template_path, dest_path)
+        # If it's a directory, recurse
+        elif os.path.isdir(from_path):
+            generate_pages_recursive(from_path, template_path, dest_path)
+
 def copy_static_to_public(source_dir: str, dest_dir: str) -> None:
     """
     Recursively copy all contents from source_dir to dest_dir.
@@ -109,30 +138,25 @@ def extract_title(markdown: str) -> str:
     raise ValueError("No h1 heading found in markdown")
 
 def text_node_to_html_node(text_node: TextNode) -> HTMLNode:
-    match (text_node):
-        case TextNode(text, TextType.LINK, url):
-            return LeafNode(text, "a", {"href": url})
-        case TextNode(text, TextType.TEXT, _):
-            return LeafNode(text)
-        case TextNode(text, TextType.BOLD, _):
-            return LeafNode(text, "b")
-        case TextNode(text, TextType.ITALIC, _):
-            return LeafNode(text, "i")
-        case TextNode(text, TextType.CODE, _):
-            return LeafNode(text, "code")
-        case TextNode(text, TextType.IMAGE, url):
-            return LeafNode(text, "img", {"src": url})
-        case _:
-            raise ValueError("Invalid text node")
+    if text_node.text_type == TextType.LINK:
+        return LeafNode(text_node.text, "a", {"href": text_node.url})
+    elif text_node.text_type == TextType.TEXT:
+        return LeafNode(text_node.text)
+    elif text_node.text_type == TextType.BOLD:
+        return LeafNode(text_node.text, "b")
+    elif text_node.text_type == TextType.ITALIC:
+        return LeafNode(text_node.text, "i")
+    elif text_node.text_type == TextType.CODE:
+        return LeafNode(text_node.text, "code")
+    elif text_node.text_type == TextType.IMAGE:
+        return LeafNode(text_node.text, "img", {"src": text_node.url})
+    else:
+        raise ValueError("Invalid text node")
 
 def main():
     # Copy static files to public directory
     copy_static_to_public("static", "public")
-    generate_page("content/index.md", "template.html", "public/index.html")
-
-    # Example text node conversion (keeping existing code)
-    text_node = TextNode("This is some anchor text", TextType.LINK, "https://www.boot.dev")
-    print(text_node.__repr__())
+    generate_pages_recursive("content", "template.html", "public")
 
 if __name__ == "__main__":
     main()
