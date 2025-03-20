@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import logging
 from textnode import TextNode, TextType
@@ -8,7 +9,7 @@ from markdown_to_html import markdown_to_html_node
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 
-def generate_page(from_path: str, template_path: str, dest_path: str) -> None:
+def generate_page(from_path: str, template_path: str, dest_path: str, base_path: str = "/") -> None:
     """
     Generate an HTML page from a markdown file using a template.
 
@@ -16,6 +17,7 @@ def generate_page(from_path: str, template_path: str, dest_path: str) -> None:
         from_path: Path to the markdown file
         template_path: Path to the HTML template
         dest_path: Path where the generated HTML should be saved
+        base_path: Base path for the site (defaults to "/")
     """
     logging.info(f"Generating page from {from_path} to {dest_path} using {template_path}")
 
@@ -38,6 +40,20 @@ def generate_page(from_path: str, template_path: str, dest_path: str) -> None:
     html_page = template.replace("{{ Title }}", title)
     html_page = html_page.replace("{{ Content }}", html_content)
 
+    # Ensure base_path ends with a slash for proper URL joining
+    if not base_path.endswith("/"):
+        base_path = base_path + "/"
+
+    # Replace href="/ and src="/ with the base path
+    # Handle both quoted and unquoted attributes
+    html_page = html_page.replace('href="/', f'href="{base_path}')
+    html_page = html_page.replace('src="/', f'src="{base_path}')
+    html_page = html_page.replace("href='/", f"href='{base_path}")
+    html_page = html_page.replace("src='/", f"src='{base_path}")
+    # Handle attributes without quotes
+    html_page = html_page.replace('href=/', f'href={base_path}')
+    html_page = html_page.replace('src=/', f'src={base_path}')
+
     # Create destination directory if it doesn't exist
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
@@ -47,7 +63,7 @@ def generate_page(from_path: str, template_path: str, dest_path: str) -> None:
 
     logging.info(f"Generated {dest_path}")
 
-def generate_pages_recursive(dir_path_content: str, template_path: str, dest_dir_path: str) -> None:
+def generate_pages_recursive(dir_path_content: str, template_path: str, dest_dir_path: str, base_path: str = "/") -> None:
     """
     Recursively generate HTML pages from markdown files in a directory using a template.
 
@@ -55,6 +71,7 @@ def generate_pages_recursive(dir_path_content: str, template_path: str, dest_dir
         dir_path_content: Path to the directory containing markdown files
         template_path: Path to the HTML template
         dest_dir_path: Path where the generated HTML files should be saved
+        base_path: Base path for the site (defaults to "/")
     """
     logging.info(f"Generating pages recursively from {dir_path_content} to {dest_dir_path} using {template_path}")
 
@@ -71,10 +88,10 @@ def generate_pages_recursive(dir_path_content: str, template_path: str, dest_dir
         if os.path.isfile(from_path):
             if filename.endswith(".md"):
                 dest_path = dest_path.replace(".md", ".html")
-                generate_page(from_path, template_path, dest_path)
+                generate_page(from_path, template_path, dest_path, base_path)
         # If it's a directory, recurse
         elif os.path.isdir(from_path):
-            generate_pages_recursive(from_path, template_path, dest_path)
+            generate_pages_recursive(from_path, template_path, dest_path, base_path)
 
 def copy_static_to_public(source_dir: str, dest_dir: str) -> None:
     """
@@ -153,10 +170,17 @@ def text_node_to_html_node(text_node: TextNode) -> HTMLNode:
     else:
         raise ValueError("Invalid text node")
 
-def main():
+def main(*argv):
+    # Get base path from command line arguments or use default
+    base_path = argv[0] if argv else "/"
+
+    # Ensure base path starts with /
+    if not base_path.startswith("/"):
+        base_path = "/" + base_path
+
     # Copy static files to public directory
-    copy_static_to_public("static", "public")
-    generate_pages_recursive("content", "template.html", "public")
+    copy_static_to_public("static", "docs")
+    generate_pages_recursive("content", "template.html", "docs", base_path)
 
 if __name__ == "__main__":
-    main()
+    main(*sys.argv[1:])
